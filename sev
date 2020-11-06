@@ -1,0 +1,95 @@
+#!/bin/bash
+
+GREEN='\033[0;32m'
+NC='\033\e[0m'
+RED='\033[0;31m'
+
+sev_config_path=$PWD/.sev_config
+
+if ! [ -f "$sev_config_path" ];
+then
+    echo "there is no .sev_config file"
+    exit
+fi
+       
+source $PWD/.sev_config
+
+connect="ssh $user@$server"
+
+detect_process() {
+    pid=`$connect pgrep java`
+}
+
+status() {
+    if [ -z "$pid" ]
+    then
+	echo -e "${RED}DOWN!${NC}"
+	echo "Server build is not running"
+    else
+	echo -e "${GREEN}Stable!${NC}"
+	echo "Server build is running at process $pid"
+    fi
+}
+
+stop() {
+    if [ -z "$pid" ]
+    then
+	echo "There was no mano server process"
+    else
+        echo "Killing the mano server process with id $pid"
+        $connect kill $pid
+    fi
+}
+
+start() {
+    
+    if [ -z "$pid" ]
+    then
+	$connect java -jar \
+		 -Dspring.profiles.active=prod \
+		 $jar_server_location &
+    else
+	echo "Cannot run thereis already process at $pid"
+    fi
+}
+
+upload() {
+    scp $jar_local_location $user@$server:$jar_server_location
+}
+
+case $1 in
+    start)
+	detect_process;
+	start;
+	;;
+    stop)
+	detect_process;
+	stop;
+	;;
+    upload)
+	upload;
+	;;
+    deploy)
+	upload;
+	detect_process;
+	stop;
+	sleep 1;
+	detect_process;
+	start;
+	;;
+    status)
+	detect_process;
+	status;
+	;;
+    restart)
+	detect_process;
+	stop;
+	sleep 1;
+	start;
+	;;
+    *)
+	echo "Commands: {start|stop|restart|upload|deploy|status}"
+	;;
+esac
+
+exit 0;
